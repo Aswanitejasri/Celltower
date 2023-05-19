@@ -8,9 +8,13 @@ import android.telephony.SignalStrength;
 import android.telephony.TelephonyManager;
 import android.view.View;
 import android.widget.Button;
+
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
+import java.lang.reflect.Method;
+
 public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_PHONE_STATE_PERMISSION = 1;
     private TelephonyManager telephonyManager;
@@ -67,10 +71,16 @@ public class MainActivity extends AppCompatActivity {
 
     private int getSignalStrengthDbm(SignalStrength signalStrength) {
         if (signalStrength != null) {
-            int signalStrengthDbm = signalStrength.getGsmSignalStrength();
-            if (signalStrengthDbm != 99) {
-                // Signal strength is in dBm
-                return -113 + 2 * signalStrengthDbm;
+            if (signalStrength.isGsm()) {
+                return signalStrength.getGsmSignalStrength() * 2 - 113; // dBm calculation for GSM
+            } else {
+                try {
+                    Method method = SignalStrength.class.getMethod("getLteRsrp");
+                    int rsrp = (int) method.invoke(signalStrength);
+                    return rsrp; // dBm value for LTE RSRP
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }
         return 0;
@@ -78,11 +88,19 @@ public class MainActivity extends AppCompatActivity {
 
     private int getSignalStrengthAsu(SignalStrength signalStrength) {
         if (signalStrength != null) {
-            int signalStrengthDbm = signalStrength.getGsmSignalStrength();
-            if (signalStrengthDbm != 99) {
-                // Signal strength is in dBm
-                int asu = (signalStrengthDbm <= -113) ? 0 : (signalStrengthDbm >= -51) ? 31 : (signalStrengthDbm + 113) / 2;
+            if (signalStrength.isGsm()) {
+                int asu = (signalStrength.getGsmSignalStrength() <= 2 || signalStrength.getGsmSignalStrength() == 99)
+                        ? 0 : signalStrength.getGsmSignalStrength() + 113; // ASU calculation for GSM
                 return asu;
+            } else {
+                try {
+                    Method method = SignalStrength.class.getMethod("getLteRsrp");
+                    int rsrp = (int) method.invoke(signalStrength);
+                    int asu = (rsrp <= -140 || rsrp == 99) ? 0 : 140 + rsrp; // ASU calculation for LTE RSRP
+                    return asu;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }
         return 0;
